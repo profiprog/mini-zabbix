@@ -33,12 +33,14 @@ let consoleOutput = (array=[], partial='') => buffer => {
 	return array;
 };
 
-let shell = (cmd) => new Promise(resolve => {
+let shell = (cmd, cwd) => new Promise(resolve => {
 	let time = format(now());
 	let out = consoleOutput([]);
 	let err = consoleOutput([]);
 	if (typeof cmd === 'string') cmd = [ "/bin/bash", "-c", cmd ];
-	let prc = spawn(cmd.shift(),  cmd, { stdio: [ 'ignore', 'pipe', 'pipe' ] });
+	let opts = { stdio: [ 'ignore', 'pipe', 'pipe' ] };
+	if (cwd) opts.cwd = resolveCwd(cwd);
+	let prc = spawn(cmd.shift(),  cmd, opts);
 	prc.stdout.setEncoding('utf8');
 	prc.stdout.registerHandler('data', out);
 	prc.stderr.registerHandler('data', err);
@@ -53,7 +55,7 @@ let shell = (cmd) => new Promise(resolve => {
 	});
 });
 
-let runProc = (itemIndex, cmd) => shell(cmd).then(response => {
+let runProc = (itemIndex, cmd, cwd) => shell(cmd, cwd).then(response => {
 	if (!response.exitCode && response.stdout) {
 		response.value = response.stdout.join('\n').trim();
 		delete response.stdout;
@@ -65,7 +67,7 @@ let runProc = (itemIndex, cmd) => shell(cmd).then(response => {
 let itemSelector = {
 	is_same: (values, param, source) => {
 		let m;
-		if(m = param.activate(/^#(\d+)/)) {
+		if((m = param.activate(/^#(\d+)/))) {
 			let pos = parseInt(m[1]);
 			if (!pos) throw new Error(`Position must be greater than 0\n${source(1, m[1])}`);
 			return pos <= values.length && !!values.slice(0, pos).reduce((a, b) => a && a.value === b.value ? a : false);
@@ -74,7 +76,7 @@ let itemSelector = {
 	},
 	last: (values, param, source) => {
 		let m;
-		if(m = param.activate(/^#(\d+)/)) {
+		if((m = param.activate(/^#(\d+)/))) {
 			let pos = parseInt(m[1]);
 			if (!pos) throw new Error(`Position must be greater than 0\n${source(1, m[1])}`);
 			return pos > values.length ? null : values[pos - 1].value;
@@ -142,7 +144,9 @@ let actionTypes = {
 		let resolver = _ => resolvePlaceholders(_, context);
 		if (action.expand) resolver(action.command); // just for check syntax
 		let cmd = action.expand ? action.command.map(resolver) : action.command.slice();
-		return shell(cmd).catch(e => ext(asErrorObj(e), { time: format(now())})).then(_ => action.lastExecution = _);
+		return shell(cmd, action.cwd).catch(e => ext(asErrorObj(e), {
+			time: format(now())
+		})).then(_ => action.lastExecution = _);
 	}
 };
 
@@ -181,6 +185,10 @@ let variables = {
 		return itemSelector[m[1]](ctx.items[m[0]], m[2], ctx.pos(m.index + m[1].length + 2));
 	}
 };
+
+let resolveCwd = cwd => path.isAbsolute(cwd) ? cwd :
+	path.resolve(path.dirname(variables["config.filename"]()), cwd);
+
 let resolvePlaceholders = (str, context) => {
 	if (Array.isArray(str)) str = str.join('\n');
 	let pos = formatPosition(str, context.where ? ` in ${context.where}` : '');
@@ -240,7 +248,7 @@ if (require.main === module) {
 			variables["config.filename"] = () => configFile;
 			let config = loadJson(configFile);
 			Promise.all(config.items.reduce((resolvingValues, item, i) => {
-				if (item.cmd) resolvingValues.push(runProc(i, item.cmd));
+				if (item.cmd) resolvingValues.push(runProc(i, item.cmd, item.cwd));
 				return resolvingValues;
 			},[])).then(values => {
 				values.forEach(result => pushItemValue(config.items[result.itemIndex], result.response));
