@@ -3,7 +3,7 @@ Allow monitor status and trigger actions like Zabbix
 
 ## Install
 ```bash
-npm i -g mini-zabbix@latest
+npm i -g @profiprog/mini-zabbix@latest
 ```
 
 ## config file

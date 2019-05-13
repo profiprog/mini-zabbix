@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Allow monitor status and trigger actions like Zabbix",
   "main": "mini-zabbix.js",
-  "run": {
+  "bin": {
     "mini-zabbix": "mini-zabbix.js"
   },
   "scripts": {
