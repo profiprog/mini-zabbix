@@ -1,6 +1,6 @@
 {
   "name": "@profiprog/mini-zabbix",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Allow monitor status and trigger actions like Zabbix",
   "main": "mini-zabbix.js",
   "run": {
@@ -8,9 +8,9 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-		"preversion": "[ -f ~/.npmrc.token.profiprog ] && cat ~/.npmrc.token.profiprog > ~/.npmrc; [ \"$(npm whoami)\" == \"profiprog\" ]",
-		"version": "npm publish",
-		"postversion": "git push --follow-tags"
+    "preversion": "[ -f ~/.npmrc.token.profiprog ] && cat ~/.npmrc.token.profiprog > ~/.npmrc; [ \"$(npm whoami)\" == \"profiprog\" ]",
+    "version": "npm publish",
+    "postversion": "git push --follow-tags"
   },
   "repository": {
     "type": "git",
@@ -29,7 +29,7 @@
   "dependencies": {
     "nodemailer": "^6.1.1"
   },
-	"publishConfig": {
-		"access": "public"
-	}
+  "publishConfig": {
+    "access": "public"
+  }
 }
