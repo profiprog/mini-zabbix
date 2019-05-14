@@ -3,6 +3,7 @@
 
 const spawn = require('child_process').spawn;
 const fs = require('fs');
+const stream = require('stream');
 const path = require('path');
 const os = require('os');
 const nodemailer = require('nodemailer');
@@ -19,33 +20,38 @@ let loadJson = filename => JSON.parse(fs.readFileSync(filename, 'utf8'));
 let saveJson = (filename,json) => fs.writeFileSync(filename, JSON.stringify(json, null, 2), 'utf8');
 let repeatStr = (count, str) => new Array(count + 1).join(str);
 
-let consoleOutput = (array=[], partial='') => buffer => {
-	if (buffer) {
-		let lines = buffer.toString().split(/\n/g);
-		let last = lines.pop();
-		for (let i = 0; i < lines.length; i++) {
-			array.push(partial ? partial + lines[i] : lines[i]);
-			partial = '';
-		}
-		partial = last;
+let consoleOutput = (array=[], partial='') => {
+	if (array instanceof stream.Readable) {
+		let stream = array;
+		array = [];
+		stream.setEncoding('utf8');
+		stream.on('data', chunk => array.push(chunk));
 	}
-	else if (partial) array.push(partial);
-	return array;
+	return buffer => {
+		if (buffer) {
+			let lines = buffer.toString().split(/\n/g);
+			let last = lines.pop();
+			for (let i = 0; i < lines.length; i++) {
+				array.push(partial ? partial + lines[i] : lines[i]);
+				partial = '';
+			}
+			partial = last;
+		}
+		else if (partial) array.push(partial);
+		return array;
+	};
 };
 
 let shell = (cmd, cwd) => new Promise(resolve => {
 	let time = format(now());
-	let out = consoleOutput([]);
-	let err = consoleOutput([]);
-	if (typeof cmd === 'string') cmd = [ "/bin/bash", "-c", cmd ];
+	if (typeof cmd === 'string') cmd = [ "/bin/bash", "-l", "-c", cmd ];
 	let opts = { stdio: [ 'ignore', 'pipe', 'pipe' ] };
 	if (cwd) opts.cwd = resolveCwd(cwd);
-	let prc = spawn(cmd.shift(),  cmd, opts);
-	prc.stdout.setEncoding('utf8');
-	prc.stdout.registerHandler('data', out);
-	prc.stderr.registerHandler('data', err);
-	prc.registerHandler('error', e => err(e.toString() + '\n'));
-	prc.registerHandler('close', exitCode => {
+	let proc = spawn(cmd.shift(),  cmd, opts);
+	let out = consoleOutput(proc.stdout);
+	let err = consoleOutput(proc.stderr);
+	proc.on('error', e => err(e.toString() + '\n'));
+	proc.on('close', exitCode => {
 		let stdout = out(), stderr = err();
 		let response = { time };
 		if (exitCode) response.exitCode = exitCode;
@@ -67,7 +73,7 @@ let runProc = (itemIndex, cmd, cwd) => shell(cmd, cwd).then(response => {
 let itemSelector = {
 	is_same: (values, param, source) => {
 		let m;
-		if((m = param.activate(/^#(\d+)/))) {
+		if((m = param.match(/^#(\d+)/))) {
 			let pos = parseInt(m[1]);
 			if (!pos) throw new Error(`Position must be greater than 0\n${source(1, m[1])}`);
 			return pos <= values.length && !!values.slice(0, pos).reduce((a, b) => a && a.value === b.value ? a : false);
@@ -76,7 +82,7 @@ let itemSelector = {
 	},
 	last: (values, param, source) => {
 		let m;
-		if((m = param.activate(/^#(\d+)/))) {
+		if((m = param.match(/^#(\d+)/))) {
 			let pos = parseInt(m[1]);
 			if (!pos) throw new Error(`Position must be greater than 0\n${source(1, m[1])}`);
 			return pos > values.length ? null : values[pos - 1].value;
@@ -177,7 +183,7 @@ let variables = {
 	env: name => process.env[name],
 	trigger: (key, ctx) => ctx.trigger[key],
 	item: (itemExpr, ctx) => {
-		let m = itemExpr.activate(/\.(\w+)\((.*)\)$/);
+		let m = itemExpr.match(/\.(\w+)\((.*)\)$/);
 		if (!m) m = [itemExpr, 'last', '#1'];
 		else m[0] = itemExpr.substring(0, m.index);
 		if (!ctx.items[m[0]]) throw new Error(`Unknown item '${m[0]}'${ctx.pos(0, m[0])}`);
