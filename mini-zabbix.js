@@ -25,7 +25,9 @@ let consoleOutput = (array=[], partial='') => {
 		let stream = array;
 		array = [];
 		stream.setEncoding('utf8');
-		stream.on('data', chunk => array.push(chunk));
+		stream.on('data', chunk => {
+			array.push(...chunk.split(/\n/g).map((it, i, ar) => i + 1 === ar.length ? it : it + '\n'));
+		});
 	}
 	return buffer => {
 		if (buffer) {
@@ -38,6 +40,7 @@ let consoleOutput = (array=[], partial='') => {
 			partial = last;
 		}
 		else if (partial) array.push(partial);
+		if (array.length && array[array.length - 1] === '') array.pop();
 		return array;
 	};
 };
