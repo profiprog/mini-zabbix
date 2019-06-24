@@ -26,8 +26,13 @@ let consoleOutput = (array=[], partial='') => {
 		array = [];
 		stream.setEncoding('utf8');
 		stream.on('data', chunk => {
-			array.push(...chunk.split(/\n/g).map((it, i, ar) => i + 1 === ar.length ? it : it + '\n'));
-			if (array[array.length - 1] === '') array.pop();
+			let i;
+			while ((i = chunk.indexOf('\n')) >= 0) {
+				if (chunk.charAt(i + 1) === '\r') i++;
+				array.push(chunk.substring(0, i + 1));
+				chunk = chunk.substring(i + 1);
+			}
+			if (chunk) array.push(chunk);
 		});
 	}
 	return buffer => {
